@@ -1,5 +1,9 @@
+const express = require('express');
+const qrcode = require('qrcode');
 const { Client, LocalAuth } = require('whatsapp-web.js');
-const qrcode = require('qrcode-terminal');
+
+const app = express();
+const port = 3000;
 
 // Configurações de horário e dias da semana
 const HORARIO_INICIO = 9; // 9h
@@ -20,32 +24,67 @@ function deveResponder() {
 
 // Função para verificar se a mensagem é sobre blockchain
 function ehSobreBlockchain(mensagem) {
-    const palavrasChave = ['blockchain', 'bitcoin', 'ethereum', 'criptomoeda', 'smart contract', 'token','suplay','bnb'];
+    const palavrasChave = ['blockchain', 'bitcoin', 'ethereum', 'criptomoeda', 'smart contract'];
     return palavrasChave.some(palavra => mensagem.toLowerCase().includes(palavra));
 }
 
 // Função para verificar se a mensagem é sobre trabalho de motorista
 function ehSobreMotorista(mensagem) {
-    const palavrasChave = ['motorista', 'caminhão', 'entrega', 'frete','viagem','natal','mossoro'];
+    const palavrasChave = ['motorista', 'caminhão', 'entrega', 'frete'];
     return palavrasChave.some(palavra => mensagem.toLowerCase().includes(palavra));
 }
 
 // Inicializa o cliente do WhatsApp
 const client = new Client({
-    authStrategy: new LocalAuth() // Salva a sessão localmente para não precisar escanear o QR code toda vez
+    authStrategy: new LocalAuth(), // Salva a sessão localmente
+    puppeteer: { headless: true }  // Executa o navegador em modo headless
 });
 
-// Gera o QR code para autenticação
+// Variável para armazenar o QR code
+let qrCodeData = null;
+
+// Rota para exibir a página com o QR code
+app.get('/', async (req, res) => {
+    if (qrCodeData) {
+        const qrCodeUrl = await qrcode.toDataURL(qrCodeData);
+        res.send(`
+            <html>
+                <head>
+                    <title>WhatsApp Bot - Conectar</title>
+                </head>
+                <body style="text-align: center; font-family: Arial, sans-serif;">
+                    <h1>Conectar WhatsApp Bot</h1>
+                    <p>Escaneie o QR code abaixo com o WhatsApp no seu celular:</p>
+                    <img src="${qrCodeUrl}" alt="QR Code" style="width: 300px; height: 300px;">
+                    <p>Após escanear, o bot estará pronto para uso.</p>
+                </body>
+            </html>
+        `);
+    } else {
+        res.send(`
+            <html>
+                <head>
+                    <title>WhatsApp Bot - Conectar</title>
+                </head>
+                <body style="text-align: center; font-family: Arial, sans-serif;">
+                    <h1>WhatsApp Bot</h1>
+                    <p>Aguardando geração do QR code...</p>
+                </body>
+            </html>
+        `);
+    }
+});
+
+// Inicializa o cliente do WhatsApp
 client.on('qr', (qr) => {
-    qrcode.generate(qr, { small: true });
+    console.log('QR code recebido. Atualize a página para exibi-lo.');
+    qrCodeData = qr; // Armazena o QR code para exibição na página
 });
 
-// Confirmação de que o cliente está pronto
 client.on('ready', () => {
     console.log('Client is ready!');
 });
 
-// Escuta as mensagens recebidas
 client.on('message', async (msg) => {
     // Verifica se a mensagem foi enviada em um grupo
     if (msg.from.endsWith('@g.us')) {
@@ -81,5 +120,10 @@ client.on('message', async (msg) => {
     }
 });
 
-// Inicia o cliente
+// Inicia o servidor web
+app.listen(port, () => {
+    console.log(`Servidor rodando em http://localhost:${port}`);
+});
+
+// Inicia o cliente do WhatsApp
 client.initialize();
